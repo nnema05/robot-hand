@@ -2,7 +2,13 @@
 
 A robotic hand that mirrors your real hand's finger bend movements in real-time through a webcam. 
 
-**Demo:** [Watch the demo](demo/demo.mov)
+**Demo:** 
+
+https://github.com/user-attachments/assets/15c34cb0-4124-4804-8bd9-6a9c450d029c
+
+
+
+
 
 ## What it does
 

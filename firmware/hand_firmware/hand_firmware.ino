@@ -10,18 +10,20 @@ Protocol:
 
 #include <Servo.h>
 
-const int NUM_SERVOS = 5;
+const int NUM_SERVOS = 6;
 
 // ORDER: thumb, index, middle, ring, pinky
 Servo servos[NUM_SERVOS];
 
-const int PINS[NUM_SERVOS] = {2, 3, 4, 5, 6};
+const int PINS[NUM_SERVOS] = {2, 3, 4, 5, 6, 7};
 // tested and verified
-const int OPEN_ANGLE[NUM_SERVOS] = {10, 140, 140, 140, 140};
-const int CLOSED_ANGLE[NUM_SERVOS] = {165,  50,  45,  50,  50};
+  // thumb starts at 90 natural and goes down to 10 open and up to 10 closed
+  // wrist "left" = 20, "right" = 40
+const int OPEN_ANGLE[NUM_SERVOS] = {10, 140, 140, 140, 140, 15};
+const int CLOSED_ANGLE[NUM_SERVOS] = {165,  50,  45,  50,  50, 50};
 
 // safe neatural for each one!
-const int NEUTRAL_ANGLE[NUM_SERVOS] = { 90,  90,  90,  90,  90};
+const int NEUTRAL_ANGLE[NUM_SERVOS] = { 90,  90,  90,  90,  90, 30};
 
 // helper: 
 // bounds check, clamp angle between lower or higher of open or close angle!

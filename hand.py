@@ -17,15 +17,21 @@ FINGERS = {
     "ring":   (13, 14, 16),
     "pinky":  (17, 18, 20),
 }
-FINGER_NAMES = ["thumb", "index", "middle", "ring", "pinky"]
+FINGER_NAMES = ["thumb", "index", "middle", "ring", "pinky", "wrist"]
 
 # the mapping from webcam hand bend to servo angle
     # the ANGLE your hand produces when open vs closed on webcam
 ANGLE_OPEN   = {"thumb": 176, "index": 178, "middle": 179, "ring": 177, "pinky": 177}
 ANGLE_CLOSED = {"thumb": 146, "index": 6,   "middle": 11,  "ring": 22,  "pinky": 36}
+    # for wave
+    # upright is -5
+WRIST_TILT_LEFT = -25
+WRIST_TILT_RIGHT = 15
     # SERVO angle each finger needs for open vs closed
 SERVO_OPEN   = {"thumb": 10,  "index": 140, "middle": 140, "ring": 140, "pinky": 140}
 SERVO_CLOSED = {"thumb": 165, "index": 50,  "middle": 45,  "ring": 50,  "pinky": 50}
+SERVO_WRIST_LEFT = 15
+SERVO_WRIST_RIGHT = 50
 
 # Thumb uses a distance RATIO, not an angle
     # measure thumb by distance not joit angle to avoid confusion when hyperextending thumb
@@ -41,7 +47,8 @@ def map_to_servo(name, angle):
     )
     return int(servo)
 
-# geometry --> where landmarks measure the angle
+# geometry --> where landmarks measure the angle    
+    # finds the angle (in radians) of a point (x, y) from the positive x-axis
 def finger_angle(a, b, c):
     """
     Angle (degrees) at point landmark joint (b), formed by vectors b->a and b->c.
@@ -91,6 +98,28 @@ def thumb_openness(points):
 
     return tip_to_pinky / hand_width
 
+# Hand tilt from the wrist(0) -> middle-base(9) vector (this line points up and tilts when you wave your hand)
+    # how far to the side is the middle-base from the wrist is 0 when holding upright and how far up/down is middle base from the wrist is large!
+    # when you tilt: the middle-base swings sideways relative to the wrist, so how horiztonal_middlebase_wrist_diff grows while veriftical_middlebase_wrist_diff shrinks.
+    # Returns degrees: 0 = upright, negative = tilted one way, positive = other
+def hand_wrist_tilt(points):
+    wrist = points[0]
+    middle_base = points[9]
+
+    # vector from wrist up through the palm
+        # how far to the side is the middle-base from the wrist
+    horiztonal_middlebase_wrist_diff = middle_base[0] - wrist[0]
+        # how far up/down is middle base from the wrist
+    veriftical_middlebase_wrist_diff = middle_base[1] - wrist[1]
+
+    # arc tan turns this x y point into angle
+    # vertical last bc measures from the vertical instead, so upright ≈ 0
+        # must negate the vertical difference to get the correct angle
+        # in image coordinates, y grows DOWNWARD so  middle_base[1] - wrist[1] is negative 
+            # bc Pixel (0,0) is the top left corner so a landmark higher up on screen has a smaller y
+    angle = np.degrees(np.arctan2(horiztonal_middlebase_wrist_diff, -veriftical_middlebase_wrist_diff))
+    return angle
+
 # vision set up and arduino connection
 def main():
     # open serial connection to the Arduino on port and with baud rate
@@ -104,8 +133,8 @@ def main():
         # Each wobble gets sent straight to the servos
         # blend each new reading with the previous sent value using a single weight
     smoothed_servo_angle = {name: None for name in FINGER_NAMES} # smoothed holds each finger's running angle value
-    ALPHA = 0.5 # weight we will smooth by 
-
+    ALPHA = 0.5 # weight we will smooth by
+    
     # Smoothing of hand motion
         # only send a new angles if a finger moved more than this many degrees
     MOVE_THRESHOLD = 2
@@ -163,6 +192,15 @@ def main():
                         [SERVO_CLOSED["thumb"], SERVO_OPEN["thumb"]],
                     ))
                     raw_reading_from_webcam = ratio
+                elif finger == "wrist":
+                    # wrist: tilt angle, mapped to its servo angle range
+                    angle = hand_wrist_tilt(points)
+                    servo_angle_raw = int(np.interp(
+                        angle,
+                        [WRIST_TILT_LEFT, WRIST_TILT_RIGHT],
+                        [SERVO_WRIST_LEFT, SERVO_WRIST_RIGHT],
+                    ))
+                    raw_reading_from_webcam = angle
                 else: 
                     base, joint, tip = FINGERS[finger]
                     # for each finger, get its three landmakrs (joint, base, tip) and compute the angle bend
@@ -178,7 +216,7 @@ def main():
                     smoothed_servo_angle[finger] = ALPHA * servo_angle_raw + (1 - ALPHA) * smoothed_servo_angle[finger]
 
                 # for on screen webcam display, show mapping from finger angle to servo angle
-                text = f"{finger}: angle {raw_reading_from_webcam:2f} -> servo {int(smoothed_servo_angle[finger]):3d}"
+                text = f"{finger}: angle {raw_reading_from_webcam:6.2f} -> servo {int(smoothed_servo_angle[finger]):3d}"
                 cv2.putText(frame, text, (10, on_screen_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 on_screen_y += 28
             
@@ -198,7 +236,7 @@ def main():
                 all_angles = ",".join(str(int(smoothed_servo_angle[finger])) for finger in FINGER_NAMES)
                 arduino.write((all_angles + "\n").encode())
                 print(all_angles)
-                last_sent_frame = [int(smoothed_servo_angle[finger]) for finger in FINGER_NAMES]          # remember what we sent
+                last_sent_frame = [int(smoothed_servo_angle[finger]) for finger in FINGER_NAMES] 
 
                 cv2.putText(frame, f"send: {all_angles}", (10, on_screen_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2)
             else:

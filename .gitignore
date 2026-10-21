@@ -3,3 +3,6 @@ __pycache__/
 plan.md
 wiring_robot_hand.jpeg
 .DS_Store
+
+test_firmware/
+test_files/
